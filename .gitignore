@@ -1,88 +1,50 @@
-# ================================
 # Python
-# ================================
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.Python
-venv/
-env/
-.venv/
-*.egg-info/
-dist/
-build/
-
-# ================================
-# Environment
-# ================================
-.env
-.env.local
-.env.*.local
-!.env.example
-
-# ================================
-# IDE
-# ================================
-.vscode/
-.idea/
-*.swp
-*.swo
-.DS_Store
-Thumbs.db
-
-# ================================
-# Test & Coverage
-# ================================
+*.pyo
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .coverage
 htmlcov/
-.mypy_cache/
+.venv/
+venv/
+*.egg-info/
 
-# ================================
-# Load test results (auto-generated)
-# ================================
-results/*.csv
-results/*.html
-# Giữ thư mục results nhưng không commit CSV
-!results/.gitkeep
+# Node
+node_modules/
+.next/
+out/
+dist/
+coverage/
 
-# ================================
-# Evaluation outputs (auto-generated)
-# ================================
-evaluate/e2e_results.json
-evaluate/retrieval_results.json
-evaluate/retrieval_report.csv
-# Giữ golden_dataset và test cases (manually curated)
-!evaluate/golden_dataset.json
-!evaluate/retrieval_test_cases.json
-!evaluate/retrieval_test_cases.csv
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
 
-# ================================
-# Data files lớn
-# ================================
-data/faiss_index.bin
-data/vietcombank_chunks_older.json
-# Giữ chunks mới nhất
-!data/vietcombank_chunks.json
-!data/vietcombank_corpus.json
+# Data artifacts
+data/raw/*
+data/normalized/*
+data/chunks/*
+data/indexes/*
+data/reports/*
+!data/raw/.gitkeep
+!data/normalized/.gitkeep
+!data/chunks/.gitkeep
+!data/indexes/.gitkeep
+!data/reports/.gitkeep
 
-# ================================
 # Logs
-# ================================
-*.log
 logs/
+*.log
 
-# ================================
-# Docker
-# ================================
-.dockerignore
+# IDE
+.idea/
+.vscode/
 
-# ================================
-# Misc
-# ================================
-*.docx
-*.pdf
-backup/
-test.py
-test1.py
+# OS
+.DS_Store
+Thumbs.db

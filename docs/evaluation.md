@@ -1,94 +1,33 @@
-# Evaluation Guide
+# Evaluation Strategy
 
-## 1. Retrieval Evaluation
+## Retrieval Metrics
 
-Đánh giá khả năng tìm đúng tài liệu cho 227 chunks.
+- Recall@5, Recall@10, Recall@20
+- MRR
+- nDCG
+- Coverage by product type and section
 
-```bash
-cd backend
-python evaluate/evaluate_retrieval.py
-```
+## Answer Metrics
 
-**Metrics:**
-- **Hit Rate @k=15**: % câu hỏi có doc đúng trong top-15
-- **MRR**: Mean Reciprocal Rank
+- Faithfulness to retrieved context
+- Answer relevance
+- Citation correctness
+- Refusal correctness for unsafe and out-of-scope prompts
+- Vietnamese fluency and formatting
 
-**Target:** Hit Rate > 80%, MRR > 0.6
+## Operational Metrics
 
----
+- P50/P95 latency
+- Token cost per successful answer
+- Cache hit rate
+- Retrieval empty rate
+- User feedback score
 
-## 2. End-to-End Evaluation
+## Quality Gates
 
-Đánh giá chất lượng câu trả lời với LLM-as-judge.
+CI should fail when:
 
-```bash
-python evaluate/end_to_end_evaluator.py
-```
-
-**Metrics (1-5):**
-- **Faithfulness**: Câu trả lời có bịa thông tin không?
-- **Relevance**: Có trả lời đúng câu hỏi không?
-- **Completeness**: Có đủ thông tin không?
-- **Clarity**: Có rõ ràng không?
-
----
-
-## 3. Latency Analysis
-
-```bash
-python scripts/analyze_latency.py --days 7
-python scripts/analyze_latency.py --hours 24
-```
-
-**Target latency:**
-
-| Path | P50 | P95 |
-|---|---|---|
-| Redis hit | < 2s | < 3.5s |
-| Semantic hit | < 3s | < 5s |
-| Cache miss | < 6s | < 10s |
-| Decompose | < 8s | < 14s |
-
----
-
-## 4. Load Testing
-
-```bash
-# Web UI
-locust -f locustfile.py --host=http://localhost:8000
-
-# Headless — từng scenario
-make load-baseline   # 5 users
-make load-normal     # 20 users
-make load-peak       # 50 users
-make load-stress     # 100 users
-
-# So sánh kết quả
-make load-compare
-```
-
-**Lưu ý:** `/chat` là streaming endpoint — Locust mặc định đo TTFT.
-File `locustfile.py` đã fix để đo total response time qua metric `/chat [total]`.
-
----
-
-## 5. Kết quả hiện tại
-
-### Retrieval (227 test cases)
-
-| Section | Hit Rate |
-|---|---|
-| list | ~100% |
-| Thông tin chung | ~75% |
-| Hồ sơ chuẩn bị | ~80% |
-| QA pairs | ~70% |
-| condition (thẻ) | ~90% |
-| fee (thẻ) | ~85% |
-
-### Latency (production logs)
-
-| Path | P50 | P95 |
-|---|---|---|
-| Redis hit | ~2s | ~4s |
-| Semantic hit | ~3s | ~6s |
-| Cache miss | ~6-8s | ~10-12s |
+- Retrieval Recall@10 drops below the configured threshold.
+- Citation correctness regresses.
+- Unsafe prompts are answered instead of refused.
+- Unit tests or schema validation fail.

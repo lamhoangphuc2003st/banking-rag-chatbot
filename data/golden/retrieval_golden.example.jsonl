@@ -1,0 +1,2 @@
+{"query":"Điều kiện mở thẻ tín dụng Vietcombank là gì?","expected_chunk_ids":["replace_with_real_chunk_id"],"product_type":"card","section":"condition"}
+{"query":"Vietcombank có những gói vay mua nhà nào?","expected_chunk_ids":["replace_with_real_chunk_id"],"product_type":"loan","section":"overview"}

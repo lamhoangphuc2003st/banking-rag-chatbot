@@ -1,3 +1,0 @@
-Method,Name,Error,Occurrences
-POST,/chat [total],CatchResponseError('HTTP 502'),1
-POST,/chat [total],CatchResponseError('Stream error: Response ended prematurely'),1
