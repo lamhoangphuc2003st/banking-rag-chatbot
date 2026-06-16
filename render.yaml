@@ -28,6 +28,10 @@ services:
         value: "300"
       - key: RAG_CACHE_MAX_ENTRIES
         value: "512"
+      - key: REDIS_SOCKET_CONNECT_TIMEOUT_SECONDS
+        value: "2"
+      - key: REDIS_SOCKET_TIMEOUT_SECONDS
+        value: "5"
       - key: RAG_DATA_ROOT
         value: data
       - key: QDRANT_COLLECTION

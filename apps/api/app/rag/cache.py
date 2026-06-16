@@ -94,12 +94,16 @@ class RedisTTLCache:
         ttl_seconds: float,
         encode: Callable[[Any], str],
         decode: Callable[[str], Any],
+        socket_connect_timeout_seconds: float = 2.0,
+        socket_timeout_seconds: float = 5.0,
     ) -> None:
         self.redis_url = redis_url
         self.namespace = namespace.strip(":")
         self.ttl_seconds = max(0.0, ttl_seconds)
         self.encode = encode
         self.decode = decode
+        self.socket_connect_timeout_seconds = max(0.1, socket_connect_timeout_seconds)
+        self.socket_timeout_seconds = max(0.1, socket_timeout_seconds)
         self._redis: Any | None = None
 
     async def get(self, key: str) -> Any | None:
@@ -157,8 +161,8 @@ class RedisTTLCache:
                 self.redis_url,
                 encoding="utf-8",
                 decode_responses=True,
-                socket_connect_timeout=0.25,
-                socket_timeout=0.5,
+                socket_connect_timeout=self.socket_connect_timeout_seconds,
+                socket_timeout=self.socket_timeout_seconds,
             )
         return self._redis
 

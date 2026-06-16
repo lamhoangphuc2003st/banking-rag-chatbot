@@ -15,6 +15,8 @@ Required Render environment variables:
 - `OPENAI_API_KEY`
 - `COHERE_API_KEY`
 - `API_CORS_ORIGINS`
+- `REDIS_SOCKET_CONNECT_TIMEOUT_SECONDS=2`
+- `REDIS_SOCKET_TIMEOUT_SECONDS=5`
 
 Set `API_CORS_ORIGINS` to your Vercel production URL. If the frontend uses the
 default Vercel rewrite, browser CORS is mostly avoided, but keeping the origin

@@ -90,6 +90,14 @@ Redis, or another managed Redis provider. Copy its connection string into:
 The API uses that same Redis endpoint for RAG cache and rate limiting. Nothing
 in this repo starts or owns the Redis server.
 
+If Redis is in another region or a free managed tier, increase the socket
+timeouts instead of disabling Redis cache:
+
+```bash
+REDIS_SOCKET_CONNECT_TIMEOUT_SECONDS=2
+REDIS_SOCKET_TIMEOUT_SECONDS=5
+```
+
 ## Deploy: Render + Vercel
 
 Backend deploys as a Render Python web service from `render.yaml`. Frontend

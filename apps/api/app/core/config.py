@@ -46,6 +46,8 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+asyncpg://bankbot:bankbot@localhost:5432/bankbot"
     redis_url: str = ""
+    redis_socket_connect_timeout_seconds: float = 2.0
+    redis_socket_timeout_seconds: float = 5.0
     qdrant_url: str = "http://localhost:6333"
     qdrant_api_key: str | None = None
     qdrant_collection: str = "vietcombank_public_docs"

@@ -313,8 +313,8 @@ async def _verify_redis(settings: Settings) -> list[str]:
             settings.redis_url,
             encoding="utf-8",
             decode_responses=True,
-            socket_connect_timeout=0.5,
-            socket_timeout=1.0,
+            socket_connect_timeout=settings.redis_socket_connect_timeout_seconds,
+            socket_timeout=settings.redis_socket_timeout_seconds,
         )
         try:
             await redis.ping()

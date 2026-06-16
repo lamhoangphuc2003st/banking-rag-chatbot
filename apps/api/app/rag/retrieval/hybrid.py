@@ -159,6 +159,8 @@ class HybridRetriever:
                 ttl_seconds=ttl_seconds,
                 encode=encode,
                 decode=decode,
+                socket_connect_timeout_seconds=self.settings.redis_socket_connect_timeout_seconds,
+                socket_timeout_seconds=self.settings.redis_socket_timeout_seconds,
             )
         if backend not in {"", "memory", "inmemory", "local"}:
             logger.warning("unknown_rag_cache_backend", backend=backend, fallback="memory")

@@ -32,6 +32,8 @@ async def lifespan(app: FastAPI):
         backend=settings.api_rate_limit_backend,
         limit_per_minute=settings.api_rate_limit_per_minute,
         redis_url=settings.redis_url,
+        redis_socket_connect_timeout_seconds=settings.redis_socket_connect_timeout_seconds,
+        redis_socket_timeout_seconds=settings.redis_socket_timeout_seconds,
     )
     logger.info("api_started", env=settings.app_env)
     try:
@@ -258,8 +260,8 @@ async def _check_redis() -> dict[str, Any]:
             settings.redis_url,
             encoding="utf-8",
             decode_responses=True,
-            socket_connect_timeout=0.5,
-            socket_timeout=1.0,
+            socket_connect_timeout=settings.redis_socket_connect_timeout_seconds,
+            socket_timeout=settings.redis_socket_timeout_seconds,
         )
         try:
             await redis.ping()

@@ -48,7 +48,14 @@ class InMemoryRateLimiter:
 class RedisRateLimiter:
     """Fixed-window Redis limiter shared across API replicas."""
 
-    def __init__(self, redis_url: str, limit_per_minute: int) -> None:
+    def __init__(
+        self,
+        redis_url: str,
+        limit_per_minute: int,
+        *,
+        socket_connect_timeout_seconds: float = 2.0,
+        socket_timeout_seconds: float = 5.0,
+    ) -> None:
         from redis.asyncio import Redis
 
         self.limit_per_minute = limit_per_minute
@@ -56,8 +63,8 @@ class RedisRateLimiter:
             redis_url,
             encoding="utf-8",
             decode_responses=True,
-            socket_connect_timeout=0.5,
-            socket_timeout=1.0,
+            socket_connect_timeout=max(0.1, socket_connect_timeout_seconds),
+            socket_timeout=max(0.1, socket_timeout_seconds),
         )
 
     async def allow(self, key: str) -> bool:
@@ -80,12 +87,19 @@ def create_rate_limiter(
     backend: str,
     limit_per_minute: int,
     redis_url: str,
+    redis_socket_connect_timeout_seconds: float = 2.0,
+    redis_socket_timeout_seconds: float = 5.0,
 ) -> RateLimiter:
     normalized_backend = backend.strip().casefold()
     if normalized_backend == "redis":
         if not redis_url.strip():
             raise ValueError("REDIS_URL is required when API_RATE_LIMIT_BACKEND=redis.")
-        return RedisRateLimiter(redis_url, limit_per_minute)
+        return RedisRateLimiter(
+            redis_url,
+            limit_per_minute,
+            socket_connect_timeout_seconds=redis_socket_connect_timeout_seconds,
+            socket_timeout_seconds=redis_socket_timeout_seconds,
+        )
     if normalized_backend not in {"", "memory", "inmemory", "local"}:
         logger.warning("unknown_rate_limit_backend", backend=backend, fallback="memory")
     return InMemoryRateLimiter(limit_per_minute)

@@ -53,3 +53,14 @@ def test_redis_rate_limiter_requires_redis_url() -> None:
 def test_redis_rag_cache_requires_redis_url() -> None:
     with pytest.raises(ValueError, match="REDIS_URL is required"):
         HybridRetriever(Settings(_env_file=None, rag_cache_backend="redis", redis_url=""))
+
+
+def test_redis_timeouts_are_configurable() -> None:
+    settings = Settings(
+        _env_file=None,
+        redis_socket_connect_timeout_seconds=3,
+        redis_socket_timeout_seconds=8,
+    )
+
+    assert settings.redis_socket_connect_timeout_seconds == 3
+    assert settings.redis_socket_timeout_seconds == 8
