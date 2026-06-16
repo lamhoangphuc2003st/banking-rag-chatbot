@@ -5,7 +5,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from apps.api.app.core.config import get_settings
+from apps.api.app.core.config import get_settings, sync_database_url
 from apps.api.app.db.models import Base
 
 config = context.config
@@ -14,14 +14,14 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 settings = get_settings()
-sync_database_url = settings.database_url.replace("+asyncpg", "+psycopg")
-config.set_main_option("sqlalchemy.url", sync_database_url)
+sync_url = sync_database_url(settings.database_url)
+config.set_main_option("sqlalchemy.url", sync_url)
 target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
     context.configure(
-        url=sync_database_url,
+        url=sync_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},

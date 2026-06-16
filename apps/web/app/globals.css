@@ -152,7 +152,34 @@ a {
   gap: 8px;
 }
 
+.clarificationOptions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.clarificationButton {
+  max-width: 360px;
+  border: 1px solid #b7cdc4;
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--text);
+  cursor: pointer;
+  line-height: 1.35;
+  padding: 8px 10px;
+  text-align: left;
+  white-space: normal;
+}
+
+.clarificationButton:hover,
+.clarificationButton:focus-visible {
+  border-color: var(--brand);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(4, 120, 87, 0.12);
+}
+
 .source {
+  max-width: 360px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fff;

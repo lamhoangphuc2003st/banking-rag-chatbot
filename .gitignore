@@ -33,7 +33,12 @@ data/indexes/*
 data/reports/*
 !data/raw/.gitkeep
 !data/normalized/.gitkeep
+!data/normalized/vietcombank_product_catalogs_normalized.jsonl
 !data/chunks/.gitkeep
+!data/chunks/vietcombank_chunks.jsonl
+!data/chunks/vietcombank_products_chunks.jsonl
+!data/chunks/vietcombank_faq_chunks.jsonl
+!data/chunks/vietcombank_product_catalogs_chunks.jsonl
 !data/indexes/.gitkeep
 !data/reports/.gitkeep
 

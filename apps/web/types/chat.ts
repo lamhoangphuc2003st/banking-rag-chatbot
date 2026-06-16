@@ -13,6 +13,15 @@ export type SourceCitation = {
   score?: number | null;
 };
 
+export type ClarificationOption = {
+  title: string;
+  type: string;
+  url?: string | null;
+  product_type?: string | null;
+  category_title?: string | null;
+  parent_title?: string | null;
+};
+
 export type ChatResponse = {
   answer: string;
   session_id: string;
@@ -22,3 +31,23 @@ export type ChatResponse = {
   latency_ms: number;
   metadata: Record<string, unknown>;
 };
+
+export type ChatStreamEvent =
+  | {
+      type: "token";
+      content: string;
+    }
+  | {
+      type: "sources";
+      sources: SourceCitation[];
+    }
+  | {
+      type: "metadata";
+      trace_id: string;
+      refusal: boolean;
+      latency_ms: number;
+      metadata: Record<string, unknown>;
+    }
+  | {
+      type: "done";
+    };

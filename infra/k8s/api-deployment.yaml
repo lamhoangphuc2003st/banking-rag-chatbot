@@ -25,6 +25,10 @@ spec:
                 name: bankbot-api-secrets
             - configMapRef:
                 name: bankbot-api-config
+          volumeMounts:
+            - name: rag-data
+              mountPath: /app/data
+              readOnly: true
           readinessProbe:
             httpGet:
               path: /health/ready
@@ -44,6 +48,10 @@ spec:
             limits:
               cpu: "1"
               memory: 1Gi
+      volumes:
+        - name: rag-data
+          persistentVolumeClaim:
+            claimName: bankbot-rag-data
 ---
 apiVersion: v1
 kind: Service

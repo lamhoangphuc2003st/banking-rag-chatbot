@@ -21,6 +21,8 @@ jobs:
         run: mypy apps packages
       - name: Test
         run: pytest
+      - name: Verify runtime data
+        run: python -m packages.data_pipeline.cli verify-runtime
 
   web:
     runs-on: ubuntu-latest
@@ -35,7 +37,7 @@ jobs:
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
       - name: Install
-        run: npm install
+        run: npm ci
       - name: Lint
         run: npm run lint
       - name: Build

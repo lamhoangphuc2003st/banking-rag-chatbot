@@ -11,7 +11,13 @@ class QdrantIndexer:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
 
-    async def index_file(self, chunks_path: Path, batch_size: int = 64) -> int:
+    async def index_file(
+        self,
+        chunks_path: Path,
+        batch_size: int = 64,
+        *,
+        recreate: bool | None = None,
+    ) -> int:
         chunks = _read_chunks(chunks_path)
         if not chunks:
             return 0
@@ -19,17 +25,35 @@ class QdrantIndexer:
         vectors = await self._embed([chunk.text for chunk in chunks])
 
         from qdrant_client import AsyncQdrantClient
-        from qdrant_client.models import Distance, PointStruct, VectorParams
+        from qdrant_client.models import Distance, PayloadSchemaType, PointStruct, VectorParams
 
         client = AsyncQdrantClient(
             url=self.settings.qdrant_url,
             api_key=self.settings.qdrant_api_key,
             timeout=30,
         )
-        await client.recreate_collection(
-            collection_name=self.settings.qdrant_collection,
-            vectors_config=VectorParams(size=len(vectors[0]), distance=Distance.COSINE),
+        should_recreate = (
+            self.settings.qdrant_recreate_collection if recreate is None else recreate
         )
+        collection_exists = await client.collection_exists(self.settings.qdrant_collection)
+        if should_recreate and collection_exists:
+            await client.delete_collection(collection_name=self.settings.qdrant_collection)
+            collection_exists = False
+        if not collection_exists:
+            await client.create_collection(
+                collection_name=self.settings.qdrant_collection,
+                vectors_config=VectorParams(size=len(vectors[0]), distance=Distance.COSINE),
+            )
+        for field_name in ("section", "product_type", "language"):
+            try:
+                await client.create_payload_index(
+                    collection_name=self.settings.qdrant_collection,
+                    field_name=field_name,
+                    field_schema=PayloadSchemaType.KEYWORD,
+                )
+            except Exception as exc:
+                if "already" not in str(exc).casefold():
+                    raise
 
         total = 0
         for start in range(0, len(chunks), batch_size):
@@ -56,6 +80,7 @@ class QdrantIndexer:
             ]
             await client.upsert(collection_name=self.settings.qdrant_collection, points=points)
             total += len(points)
+        await client.close()
         return total
 
     async def _embed(self, texts: list[str]) -> list[list[float]]:

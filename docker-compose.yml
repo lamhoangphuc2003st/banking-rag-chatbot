@@ -7,10 +7,10 @@ services:
       - .env
     ports:
       - "8000:8000"
+    volumes:
+      - ./data:/app/data:ro
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
       qdrant:
         condition: service_started
@@ -31,19 +31,6 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
-    image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes"]
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   qdrant:
     image: qdrant/qdrant:v1.12.6
     ports:
@@ -54,5 +41,4 @@ services:
 
 volumes:
   postgres_data:
-  redis_data:
   qdrant_data:

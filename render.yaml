@@ -1,0 +1,66 @@
+services:
+  - type: web
+    name: bankbot-api
+    runtime: python
+    region: singapore
+    plan: starter
+    buildCommand: python -m pip install --upgrade pip && python -m pip install -e .
+    preDeployCommand: alembic -c apps/api/alembic.ini upgrade head && python -m packages.data_pipeline.cli verify-runtime --check-external
+    startCommand: uvicorn apps.api.app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health/ready
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+      - key: API_RATE_LIMIT_PER_MINUTE
+        value: "60"
+      - key: API_RATE_LIMIT_BACKEND
+        value: redis
+      - key: API_CORS_ORIGINS
+        sync: false
+      - key: RAG_CACHE_ENABLED
+        value: "true"
+      - key: RAG_CACHE_BACKEND
+        value: redis
+      - key: RAG_CACHE_TTL_SECONDS
+        value: "300"
+      - key: RAG_CACHE_MAX_ENTRIES
+        value: "512"
+      - key: RAG_DATA_ROOT
+        value: data
+      - key: QDRANT_COLLECTION
+        value: vietcombank_public_docs
+      - key: QDRANT_REQUEST_TIMEOUT_SECONDS
+        value: "6"
+      - key: LLM_PROVIDER
+        value: openai
+      - key: LLM_MODEL
+        value: gpt-4.1-mini
+      - key: LLM_TEMPERATURE
+        value: "0.1"
+      - key: EMBEDDING_PROVIDER
+        value: openai
+      - key: EMBEDDING_MODEL
+        value: text-embedding-3-large
+      - key: RERANKER_PROVIDER
+        value: cohere
+      - key: RERANKER_MODEL
+        value: rerank-v4.0-fast
+      - key: RERANKER_MAX_DOCUMENTS
+        value: "64"
+      - key: RERANKER_REQUEST_TIMEOUT_SECONDS
+        value: "4"
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: COHERE_API_KEY
+        sync: false

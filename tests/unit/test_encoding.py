@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 TEXT_ROOTS = [
     PROJECT_ROOT / "apps",
@@ -11,6 +10,10 @@ TEXT_ROOTS = [
     PROJECT_ROOT / "docs",
     PROJECT_ROOT / "data" / "golden",
 ]
+EXCLUDED_DIR_NAMES = {
+    ".next",
+    "node_modules",
+}
 ROOT_TEXT_FILES = [
     PROJECT_ROOT / ".dockerignore",
     PROJECT_ROOT / ".editorconfig",
@@ -68,5 +71,7 @@ def _iter_project_text_files():
         if not root.exists():
             continue
         for path in root.rglob("*"):
+            if any(part in EXCLUDED_DIR_NAMES for part in path.parts):
+                continue
             if path.is_file() and path.suffix in TEXT_SUFFIXES:
                 yield path

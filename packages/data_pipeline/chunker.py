@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Iterable
 from pathlib import Path
 
 from packages.shared.schemas import DocumentChunk, NormalizedDocument
@@ -21,6 +22,27 @@ def chunk_file(input_path: Path, output_path: Path, max_chars: int = 1200, overl
             for chunk in chunk_document(document, max_chars=max_chars, overlap=overlap):
                 target.write(chunk.model_dump_json() + "\n")
                 count += 1
+    return count
+
+
+def merge_chunk_files(input_paths: Iterable[Path], output_path: Path) -> int:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    seen_chunk_ids: set[str] = set()
+    count = 0
+
+    with output_path.open("w", encoding="utf-8") as target:
+        for input_path in input_paths:
+            with input_path.open("r", encoding="utf-8") as source:
+                for line in source:
+                    if not line.strip():
+                        continue
+                    chunk = DocumentChunk.model_validate_json(line)
+                    if chunk.chunk_id in seen_chunk_ids:
+                        raise ValueError(f"Duplicate chunk_id while merging chunks: {chunk.chunk_id}")
+                    seen_chunk_ids.add(chunk.chunk_id)
+                    target.write(chunk.model_dump_json() + "\n")
+                    count += 1
+
     return count
 
 
@@ -68,7 +90,7 @@ def chunk_document(
 
 
 def stable_chunk_id(document_id: str, index: int, text: str) -> str:
-    digest = hashlib.sha256(f"{document_id}:{index}:{text}".encode("utf-8")).hexdigest()
+    digest = hashlib.sha256(f"{document_id}:{index}:{text}".encode()).hexdigest()
     return digest[:32]
 
 
