@@ -625,8 +625,11 @@ class ProductGraphRetriever:
     ) -> list[RetrievedChunk]:
         chunks: list[RetrievedChunk] = []
         query_tokens = _tokenize(query)
+
+        for index, product in enumerate(products):
+            chunks.append(_product_to_chunk(product, score=2.5 - (index * 0.01)))
+
         for product in products:
-            chunks.append(_product_to_chunk(product, score=2.5))
             detail_chunks = self.graph.detail_chunks_by_url.get(_canonical_url(product.url), [])
             if detail_chunks:
                 ranked_details = sorted(
