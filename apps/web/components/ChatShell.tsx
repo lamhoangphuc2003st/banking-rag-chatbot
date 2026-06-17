@@ -1,7 +1,8 @@
 "use client";
 
 import { Bot, Send } from "lucide-react";
-import { FormEvent, KeyboardEvent, useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { FormEvent, KeyboardEvent, UIEvent } from "react";
 import { streamChat } from "../lib/api";
 import type { ChatMessage, ClarificationOption, SourceCitation } from "../types/chat";
 
@@ -9,6 +10,8 @@ type UiMessage = ChatMessage & {
   sources?: SourceCitation[];
   clarificationOptions?: ClarificationOption[];
 };
+
+const AUTO_SCROLL_BOTTOM_THRESHOLD = 24;
 
 const initialMessages: UiMessage[] = [
   {
@@ -23,6 +26,10 @@ function createSessionId(): string {
   }
 
   return `session-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+function isNearScrollBottom(element: HTMLElement): boolean {
+  return element.scrollHeight - element.scrollTop - element.clientHeight <= AUTO_SCROLL_BOTTOM_THRESHOLD;
 }
 
 function visibleSources(message: UiMessage): SourceCitation[] {
@@ -197,7 +204,18 @@ export function ChatShell() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const messagesRef = useRef<HTMLElement | null>(null);
+  const shouldAutoScrollRef = useRef(true);
   const sessionId = useMemo(() => createSessionId(), []);
+
+  useLayoutEffect(() => {
+    const messagesElement = messagesRef.current;
+    if (!messagesElement || !shouldAutoScrollRef.current) {
+      return;
+    }
+
+    messagesElement.scrollTop = messagesElement.scrollHeight;
+  }, [messages]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -222,6 +240,7 @@ export function ChatShell() {
       { role: "user", content: visibleContent },
       assistantMessage
     ];
+    shouldAutoScrollRef.current = true;
     setMessages(visibleMessages);
     setInput("");
     setIsLoading(true);
@@ -265,6 +284,10 @@ export function ChatShell() {
     }
   }
 
+  function handleMessagesScroll(event: UIEvent<HTMLElement>) {
+    shouldAutoScrollRef.current = isNearScrollBottom(event.currentTarget);
+  }
+
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) {
       return;
@@ -290,7 +313,7 @@ export function ChatShell() {
           </div>
         </header>
 
-        <section className="messages" aria-live="polite">
+        <section className="messages" aria-live="polite" onScroll={handleMessagesScroll} ref={messagesRef}>
           {messages.map((message, index) => {
             const clarificationOptions = message.clarificationOptions ?? [];
             const displayContent =
