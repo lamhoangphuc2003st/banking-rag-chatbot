@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, Database, Send, ShieldCheck } from "lucide-react";
+import { Bot, Send } from "lucide-react";
 import { FormEvent, KeyboardEvent, useMemo, useState } from "react";
 import { streamChat } from "../lib/api";
 import type { ChatMessage, ClarificationOption, SourceCitation } from "../types/chat";
@@ -13,8 +13,7 @@ type UiMessage = ChatMessage & {
 const initialMessages: UiMessage[] = [
   {
     role: "assistant",
-    content:
-      "Xin chào. Tôi có thể tra cứu thông tin công khai của Vietcombank khi dữ liệu đã được crawl và index."
+    content: "Xin chào, bạn cần tra cứu thông tin gì về Vietcombank?"
   }
 ];
 
@@ -281,29 +280,14 @@ export function ChatShell() {
 
   return (
     <div className="shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="brandMark">
-            <Bot size={20} aria-hidden="true" />
-          </div>
-          <span>VCB RAG</span>
-        </div>
-        <div className="statusList" aria-label="Runtime status">
-          <div className="statusItem">
-            <Database size={16} aria-hidden="true" />
-            <span>Qdrant + PostgreSQL</span>
-          </div>
-          <div className="statusItem">
-            <ShieldCheck size={16} aria-hidden="true" />
-            <span>Guardrails enabled</span>
-          </div>
-        </div>
-      </aside>
-
       <main className="main">
         <header className="topbar">
-          <h1>Vietcombank RAG Chat</h1>
-          <span className="pill">Public data only</span>
+          <div className="brand">
+            <div className="brandMark">
+              <Bot size={20} aria-hidden="true" />
+            </div>
+            <h1>Vietcombank RAG</h1>
+          </div>
         </header>
 
         <section className="messages" aria-live="polite">
@@ -368,7 +352,7 @@ export function ChatShell() {
               aria-label="Nội dung câu hỏi"
               onKeyDown={handleComposerKeyDown}
               onChange={(event) => setInput(event.target.value)}
-              placeholder="Nhập câu hỏi về sản phẩm, điều kiện, hồ sơ, biểu phí Vietcombank"
+              placeholder="Nhập câu hỏi về Vietcombank"
               value={input}
             />
             <button className="sendButton" disabled={isLoading || !input.trim()} title="Gửi" type="submit">
