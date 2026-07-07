@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import math
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -18,6 +19,20 @@ class RetrievalCase:
     section: str | None = None
 
 
+def _dcg(relevances: list[float]) -> float:
+    return sum(rel / math.log2(index + 2) for index, rel in enumerate(relevances))
+
+
+def ndcg_at_k(retrieved_ids: list[str], expected: set[str], k: int) -> float:
+    """Binary-relevance nDCG@k: rewards ranking relevant chunks near the top."""
+
+    relevances = [1.0 if chunk_id in expected else 0.0 for chunk_id in retrieved_ids[:k]]
+    dcg = _dcg(relevances)
+    ideal_relevances = [1.0] * min(len(expected), k)
+    idcg = _dcg(ideal_relevances)
+    return dcg / idcg if idcg else 0.0
+
+
 async def evaluate(golden_path: Path, k: int) -> dict[str, object]:
     cases = load_cases(golden_path)
     retriever = HybridRetriever(get_settings())
@@ -28,6 +43,7 @@ async def evaluate(golden_path: Path, k: int) -> dict[str, object]:
 
     hits = 0
     reciprocal_rank_sum = 0.0
+    ndcg_sum = 0.0
     details: list[dict[str, object]] = []
 
     for case in cases:
@@ -43,6 +59,9 @@ async def evaluate(golden_path: Path, k: int) -> dict[str, object]:
         else:
             rank = None
 
+        case_ndcg = ndcg_at_k(retrieved_ids, expected, k)
+        ndcg_sum += case_ndcg
+
         details.append(
             {
                 "query": case.query,
@@ -50,6 +69,7 @@ async def evaluate(golden_path: Path, k: int) -> dict[str, object]:
                 "retrieved_chunk_ids": retrieved_ids,
                 "hit": bool(found),
                 "rank": rank,
+                "ndcg_at_k": round(case_ndcg, 4),
                 "product_type": case.product_type,
                 "section": case.section,
             }
@@ -61,6 +81,7 @@ async def evaluate(golden_path: Path, k: int) -> dict[str, object]:
         "hits": hits,
         "recall_at_k": hits / total,
         "mrr": reciprocal_rank_sum / total,
+        "ndcg_at_k": ndcg_sum / total,
         "details": details,
     }
 

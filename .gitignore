@@ -41,6 +41,7 @@ data/reports/*
 !data/chunks/vietcombank_product_catalogs_chunks.jsonl
 !data/indexes/.gitkeep
 !data/reports/.gitkeep
+!data/reports/guardrail_eval.json
 
 # Logs
 logs/

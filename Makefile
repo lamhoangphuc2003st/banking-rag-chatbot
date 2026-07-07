@@ -1,10 +1,10 @@
-.PHONY: install install-dev api web lint test eval verify-runtime verify-runtime-external docker-up docker-down migrate discover-products crawl crawl-catalogs crawl-faq crawl-linked-resources normalize normalize-catalogs normalize-faq normalize-linked-resources chunk chunk-catalogs chunk-faq chunk-linked-resources merge-chunks index reindex
+.PHONY: install install-dev api web lint test eval eval-guardrails verify-runtime verify-runtime-external docker-up docker-down migrate discover-products crawl crawl-catalogs crawl-faq crawl-linked-resources normalize normalize-catalogs normalize-faq normalize-linked-resources chunk chunk-catalogs chunk-faq chunk-linked-resources merge-chunks index reindex
 
 install:
 	python -m pip install -e .
 
 install-dev:
-	python -m pip install -e ".[dev,eval,scraping]"
+	python -m pip install -e ".[dev]"
 
 api:
 	uvicorn apps.api.app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -21,6 +21,9 @@ test:
 
 eval:
 	python -m packages.evals.retrieval_eval --golden data/golden/retrieval_golden.jsonl
+
+eval-guardrails:
+	python -m packages.evals.refusal_eval --golden data/golden/guardrail_golden.jsonl
 
 verify-runtime:
 	python -m packages.data_pipeline.cli verify-runtime

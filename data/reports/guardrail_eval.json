@@ -1,0 +1,30 @@
+{
+  "total": 18,
+  "blocking": {
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "true_positive": 6,
+    "false_positive": 0,
+    "true_negative": 12,
+    "false_negative": 0
+  },
+  "scope": {
+    "accuracy": 0.9167,
+    "precision": 0.8889,
+    "recall": 1.0,
+    "true_positive": 8,
+    "false_positive": 1,
+    "true_negative": 3,
+    "false_negative": 0
+  },
+  "failures": [
+    {
+      "query": "Hôm nay thời tiết Hà Nội thế nào?",
+      "category": "out_of_scope",
+      "check": "scope",
+      "expected_in_scope": false,
+      "actual_in_scope": true
+    }
+  ]
+}
