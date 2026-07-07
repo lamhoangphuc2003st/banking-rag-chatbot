@@ -62,11 +62,6 @@ class Settings(BaseSettings):
     crawler_user_agent: str = "BankChatbotResearchCrawler/1.0"
     crawler_request_delay_seconds: float = 1.0
 
-    otel_exporter_otlp_endpoint: str | None = None
-    langfuse_public_key: str | None = None
-    langfuse_secret_key: str | None = None
-    langfuse_host: str = "https://cloud.langfuse.com"
-
     @field_validator("api_cors_origins", mode="before")
     @classmethod
     def parse_cors_origins(cls, value: str | list[str]) -> list[str]:
