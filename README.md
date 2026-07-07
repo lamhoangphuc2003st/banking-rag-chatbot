@@ -1,6 +1,24 @@
 # Vietcombank RAG Platform
 
-Production-oriented chatbot platform for public Vietcombank product information. The system is rebuilt as a portfolio-grade AI Engineer project: data pipeline, hybrid retrieval, guarded RAG, evaluation, observability, CI/CD, and deployment assets.
+[![CI](https://github.com/lamhoangphuc2003st/banking-chatbot/actions/workflows/ci.yml/badge.svg)](https://github.com/lamhoangphuc2003st/banking-chatbot/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
+
+A portfolio-grade Retrieval-Augmented Generation platform that answers questions about
+**public Vietcombank products** (loans, cards, savings, transfers, insurance, FAQ) in
+Vietnamese — every answer grounded in crawled sources with citations, protected by input
+guardrails, and measured by an evaluation suite.
+
+> ⚠️ Unofficial project for public information only. Not affiliated with Vietcombank.
+> It performs no transactions and never handles balances, credentials, or personal accounts.
+
+## Demo
+
+<!-- TODO: after deploying (see "Deploy" below), paste your live URL and embed a GIF. -->
+
+- **Live demo:** _add your Vercel/Render URL here._
+- **Walkthrough:** _record a 10–15s clip (query → streamed answer → citations), save it to
+  `docs/assets/demo.gif`, and embed it here._
 
 ## Scope
 
@@ -10,27 +28,36 @@ Production-oriented chatbot platform for public Vietcombank product information.
 
 ## Architecture
 
-```text
-Vietcombank Website
-  -> Polite crawler
-  -> Raw/normalized data store
-  -> Schema validation
-  -> Semantic chunking
-  -> Hybrid index: vector + lexical + metadata
-  -> FastAPI RAG service
-  -> Guardrails + retrieval + rerank + generation
-  -> Web chat + admin/evaluation views
-  -> Logs, traces, metrics, evaluation reports
+```mermaid
+flowchart LR
+    subgraph Offline["Data pipeline (offline)"]
+        W[Vietcombank site] --> C[Polite crawler] --> N[Normalize + validate]
+        N --> K[Semantic chunking] --> IX[(Qdrant index<br/>vector + lexical + metadata)]
+    end
+    subgraph Online["RAG service (FastAPI)"]
+        Q[User query] --> G[Guardrails] --> R[Rewrite / plan / decompose]
+        R --> H[Graph + hybrid retrieval] --> RR[Rerank] --> GEN[Grounded generation]
+        GEN --> A[Answer + citations]
+    end
+    IX --- H
+    A --> AUD[(Postgres audit)]
+    Online --> OBS[Prometheus /metrics + structured logs]
+    UI[Next.js streaming chat] --> Q
 ```
+
+The online pipeline is hand-built async orchestration (no LangGraph) so every stage —
+guardrails, query rewrite/planning/decomposition, graph + hybrid retrieval, reranking,
+grounded generation — is explicit and independently testable. The non-streaming `answer()`
+and streaming `stream_events()` share one implementation, so they can never diverge.
 
 ## Tech Stack
 
 - API: Python 3.11+, FastAPI, Pydantic v2, SQLAlchemy, Alembic.
-- RAG: LangGraph-ready pipeline, Qdrant, Redis, PostgreSQL, configurable LLM/embedding/reranker providers.
-- Data: httpx/Playwright-ready crawler, Pydantic validation, reproducible chunk/index commands.
-- LLMOps: evaluation package, trace-friendly schemas, prompt/model/data versioning.
-- Infra: Docker Compose, production Dockerfile, Kubernetes manifests, GitHub Actions.
-- Web: Next.js, TypeScript, streaming chat UI.
+- RAG: custom async orchestration (guardrails → rewrite/plan/decompose → graph + hybrid retrieval → rerank → grounded generation), Qdrant, Redis, PostgreSQL, configurable LLM/embedding/reranker providers via LiteLLM.
+- Data: httpx + BeautifulSoup crawler, Pydantic validation, reproducible chunk/index commands.
+- LLMOps: offline evaluation (retrieval + guardrails), Prometheus metrics, structured logging.
+- Infra: Docker Compose, production Dockerfile, Kubernetes manifests, GitHub Actions CI.
+- Web: Next.js, TypeScript, streaming (SSE) chat UI with citations and clarifications.
 
 ## Quick Start
 
@@ -38,7 +65,7 @@ Vietcombank Website
 cp .env.example .env
 py -3.11 -m venv .venv
 .venv\Scripts\activate
-python -m pip install -e ".[dev,eval,scraping]"
+python -m pip install -e ".[dev]"
 docker compose up -d postgres qdrant
 make api
 ```
@@ -151,11 +178,46 @@ the local retrieval-score ordering so chat responses still complete.
 ## Evaluation
 
 ```bash
-make eval
-pytest
+make eval             # retrieval: Recall@k, MRR, nDCG@k over a golden set (needs Qdrant)
+make eval-guardrails  # guardrails: credential/PII blocking + scope, fully offline
+pytest                # unit + API tests
 ```
 
-Quality gates should include retrieval recall, MRR, citation correctness, refusal correctness, faithfulness, latency, and token cost.
+Retrieval quality (`packages/evals/retrieval_eval.py`) reports Recall@k, MRR and nDCG@k
+against `data/golden/retrieval_golden.jsonl`. Guardrail quality
+(`packages/evals/refusal_eval.py`) is deterministic and runs in CI. Answer-quality static
+checks live in `packages/evals/answer_eval.py`. See
+[docs/evaluation.md](docs/evaluation.md) for what is computed today versus planned.
+
+## Results
+
+Reproduce with `make eval` / `make eval-guardrails`.
+
+**Guardrails** — 18 labelled prompts (safe / secret-disclosure / PII / out-of-scope),
+offline and deterministic (`data/reports/guardrail_eval.json`):
+
+| Check | Accuracy | Precision | Recall |
+| --- | --- | --- | --- |
+| Credential / PII blocking | 1.00 | 1.00 | 1.00 |
+| Out-of-scope detection | 0.92 | 0.89 | 1.00 |
+
+No secret or PII disclosure is ever allowed through (false-negative rate 0). The single
+scope miss is a known heuristic limitation (a short keyword collision), tracked as future work.
+
+**Retrieval** — 35-query golden set: Recall@10 = 1.00, MRR = 1.00, nDCG@10 = 1.00.
+
+> These perfect scores mean the golden set is currently too small and self-labelled.
+> Expanding it with harder, adversarial and negative queries — and reporting realistic
+> (< 1.0) numbers — is the top evaluation priority.
+
+## Observability
+
+- `GET /metrics` — Prometheus metrics: request volume and latency (`rag_chat_latency_seconds`),
+  retrieved/reranked context depth, refusals by reason, and retrieval cache hit/miss. Scrape
+  config in [`infra/prometheus`](infra/prometheus).
+- `GET /health/live` and `GET /health/ready` (readiness checks Qdrant, Postgres, Redis and the
+  product graph).
+- Structured JSON logs (structlog) to stdout; every answer carries a `trace_id`.
 
 ## Repository Layout
 
@@ -163,9 +225,13 @@ Quality gates should include retrieval recall, MRR, citation correctness, refusa
 apps/api/                  FastAPI RAG service
 apps/web/                  Next.js chat UI
 packages/data_pipeline/    crawler, normalizer, chunker, indexer
-packages/evals/            retrieval and answer quality evaluation
+packages/evals/            retrieval, guardrail, and answer-quality evaluation
 packages/shared/           shared schemas and utilities
 infra/                     Kubernetes, monitoring, deployment assets
 docs/                      architecture, data governance, evaluation
-tests/                     unit and integration tests
+tests/                     unit and API tests
 ```
+
+## License
+
+Released under the [MIT License](LICENSE).

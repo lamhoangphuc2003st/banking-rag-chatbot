@@ -1,33 +1,41 @@
 # Evaluation Strategy
 
-## Retrieval Metrics
+Metrics are split into what is **computed today** (reproducible from this repo) and what is
+**planned**, to keep the evaluation story honest.
 
-- Recall@5, Recall@10, Recall@20
+## Computed today
+
+### Retrieval — `packages/evals/retrieval_eval.py` (`make eval`, needs Qdrant)
+
+- Recall@k
 - MRR
-- nDCG
-- Coverage by product type and section
+- nDCG@k
+- Per-case hit/rank breakdown by product type and section
 
-## Answer Metrics
+### Guardrails — `packages/evals/refusal_eval.py` (`make eval-guardrails`, offline, runs in CI)
 
-- Faithfulness to retrieved context
-- Answer relevance
-- Citation correctness
-- Refusal correctness for unsafe and out-of-scope prompts
-- Vietnamese fluency and formatting
+- Credential/PII blocking: accuracy, precision, recall, confusion matrix
+- Out-of-scope detection: accuracy, precision, recall
+- Golden set: `data/golden/guardrail_golden.jsonl`; report: `data/reports/guardrail_eval.json`
 
-## Operational Metrics
+### Answer static checks — `packages/evals/answer_eval.py`
 
-- P50/P95 latency
-- Token cost per successful answer
-- Cache hit rate
-- Retrieval empty rate
-- User feedback score
+- Citation presence on grounded answers
+- Refusal correctness when a refusal is required
+- Unsupported high-risk-claim detection (rates/fees/conditions without a source)
 
-## Quality Gates
+## Planned
 
-CI should fail when:
+- Faithfulness / answer-relevance via an LLM judge (needs an LLM and API budget)
+- Citation correctness against gold source URLs
+- **Retrieval golden-set expansion** with adversarial and negative queries — the current
+  35-query set is small and self-labelled, which yields unrealistic ~1.0 scores
+- Token cost per successful answer, surfaced in an offline report
+- Operational P50/P95 latency and cache-hit rate are exported live via Prometheus
+  (`/metrics`); folding them into a periodic report is pending
 
-- Retrieval Recall@10 drops below the configured threshold.
-- Citation correctness regresses.
-- Unsafe prompts are answered instead of refused.
-- Unit tests or schema validation fail.
+## Quality gates (CI)
+
+- `make eval-guardrails` fails if credential/PII blocking accuracy drops below its threshold.
+- `pytest` covers unit + API behaviour and the guardrail golden set.
+- `ruff` and `mypy` must pass.
