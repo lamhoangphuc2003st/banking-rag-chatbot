@@ -14,7 +14,7 @@ from typing import Any
 from uuid import uuid4
 
 from apps.api.app.core.config import Settings
-from apps.api.app.models.chat import ChatMessage, ChatRequest, ChatResponse
+from apps.api.app.models.chat import ChatMessage, ChatRequest, ChatResponse, SourceCitation
 from apps.api.app.rag.citations import build_citations
 from apps.api.app.rag.exchange_rates import ExchangeRateService
 from apps.api.app.rag.generation.llm import LLMClient
@@ -219,264 +219,35 @@ class RagPipeline:
         )
 
     async def answer(self, request: ChatRequest) -> ChatResponse:
-        started = time.perf_counter()
-        trace_id = str(uuid4())
-        question = self._latest_user_message(request)
+        """Non-streaming answer.
 
-        guardrail = inspect_query(question)
-        if not guardrail.allowed:
-            return ChatResponse(
-                answer=guardrail.safe_response or "Tôi không thể xử lý yêu cầu này.",
-                session_id=request.session_id,
-                trace_id=trace_id,
-                refusal=True,
-                latency_ms=self._elapsed_ms(started),
-                metadata={"guardrail_reason": guardrail.reason},
-            )
+        This buffers :meth:`stream_events` — the single source of truth for the
+        pipeline — so the streaming and non-streaming paths can never diverge.
+        """
 
-        exchange_rate_answer = await self.exchange_rates.answer_query(question)
-        if exchange_rate_answer is not None:
-            return ChatResponse(
-                answer=exchange_rate_answer.answer,
-                session_id=request.session_id,
-                trace_id=trace_id,
-                sources=exchange_rate_answer.sources,
-                refusal=False,
-                latency_ms=self._elapsed_ms(started),
-                metadata=exchange_rate_answer.metadata,
-            )
-
-        history_messages = request.messages[:-1]
-        prepared_query = await self._prepare_query(question, history_messages)
-        rewrite_result = prepared_query.rewrite_result
-
-        if rewrite_result.needs_clarification:
-            return ChatResponse(
-                answer=rewrite_result.clarification_question
-                or "Bạn vui lòng nêu rõ sản phẩm, nhóm sản phẩm hoặc dịch vụ cần tra cứu.",
-                session_id=request.session_id,
-                trace_id=trace_id,
-                sources=[],
-                refusal=False,
-                latency_ms=self._elapsed_ms(started),
-                metadata={
-                    "retrieved_count": 0,
-                    "reranked_count": 0,
-                    "retrieval_route": rewrite_result.route,
-                    "llm_model": self.settings.llm_model,
-                    "embedding_model": self.settings.embedding_model,
-                    "data_collection": self.settings.qdrant_collection,
-                    "retrieval_query": prepared_query.retrieval_query,
-                    "query_was_resolved": prepared_query.retrieval_query != question,
-                    "clarification_required": True,
-                    **_query_rewrite_metadata(rewrite_result),
-                },
-            )
-
-        graph_result = prepared_query.graph_result
-        if graph_result is None:
-            raise RuntimeError("prepared query did not include graph retrieval result")
-        retrieval_query = prepared_query.retrieval_query
-        data_root = _pipeline_data_root(self.settings, self.graph_retriever)
-        exact_faq_chunks = _exact_faq_chunks_for_query(
-            retrieval_query,
-            data_root=data_root,
-        )
-
-        force_exact_faq = bool(graph_result.clarification and exact_faq_chunks)
-
-        if graph_result.clarification and not force_exact_faq:
-            return ChatResponse(
-                answer=_clarification_answer(
-                    graph_result.clarification,
-                    graph_result.clarification_options,
-                ),
-                session_id=request.session_id,
-                trace_id=trace_id,
-                sources=[],
-                refusal=False,
-                latency_ms=self._elapsed_ms(started),
-                metadata={
-                    "retrieved_count": 0,
-                    "reranked_count": 0,
-                    "retrieval_route": graph_result.route,
-                    "llm_model": self.settings.llm_model,
-                    "embedding_model": self.settings.embedding_model,
-                    "data_collection": self.settings.qdrant_collection,
-                    "retrieval_query": retrieval_query,
-                    "query_was_resolved": retrieval_query != question,
-                    "clarification_required": True,
-                    **_query_rewrite_metadata(rewrite_result),
-                    "clarification_options": _subject_options_metadata(
-                        graph_result.clarification_options
-                    ),
-                },
-            )
-
-        type_only_answer = (
-            None if force_exact_faq else _type_only_catalog_answer(question, graph_result.chunks)
-        )
-        if type_only_answer:
-            citation_chunks = _type_only_catalog_chunks(graph_result.chunks)
-            citation_query = _type_only_catalog_citation_query(citation_chunks)
-            return ChatResponse(
-                answer=type_only_answer,
-                session_id=request.session_id,
-                trace_id=trace_id,
-                sources=build_citations(citation_chunks, query=citation_query),
-                refusal=False,
-                latency_ms=self._elapsed_ms(started),
-                metadata={
-                    "retrieved_count": len(citation_chunks),
-                    "reranked_count": len(citation_chunks),
-                    "retrieval_route": f"{graph_result.route}:type_only_catalog",
-                    "llm_model": self.settings.llm_model,
-                    "embedding_model": self.settings.embedding_model,
-                    "data_collection": self.settings.qdrant_collection,
-                    "retrieval_query": retrieval_query,
-                    "query_was_resolved": retrieval_query != question,
-                    **_query_rewrite_metadata(rewrite_result),
-                },
-            )
-
-        retrieval_prefetch_task = (
-            None
-            if force_exact_faq
-            else asyncio.create_task(self._retrieve(retrieval_query, top_k=12))
-        )
-        try:
-            query_plan = (
-                _exact_faq_query_plan(exact_faq_chunks)
-                if force_exact_faq
-                else await self.query_planner.plan(
-                    question=retrieval_query,
-                    history=history_messages,
-                    graph_result=graph_result,
-                    graph_retriever=self.graph_retriever,
-                )
-            )
-            if query_plan.needs_clarification:
-                if exact_faq_chunks:
-                    query_plan = _exact_faq_query_plan(exact_faq_chunks)
-                else:
-                    return self._planner_clarification_response(
-                        request=request,
-                        query_plan=query_plan,
-                        rewrite_result=rewrite_result,
-                        retrieval_query=retrieval_query,
-                        question=question,
-                        trace_id=trace_id,
-                        started=started,
-                    )
-            elif exact_faq_chunks and _catalog_retrieval_filter(retrieval_query) is not None:
-                query_plan = _exact_faq_query_plan(exact_faq_chunks)
-            decomposition = await self.query_decomposer.decompose(
-                question=retrieval_query,
-                history=history_messages,
-                graph_result=graph_result,
-                query_plan=query_plan,
-                graph_retriever=self.graph_retriever,
-            )
-            if decomposition.applied:
-                await _cancel_retrieval_prefetch(retrieval_prefetch_task)
-                retrieval_prefetch_task = None
-                retrieval = await self._retrieve_for_decomposition(decomposition, query_plan)
-            else:
-                retrieval = await self._retrieve_for_plan(
-                    retrieval_query,
-                    graph_result,
-                    query_plan=query_plan,
-                    retrieve_task=retrieval_prefetch_task,
-                )
-                retrieval_prefetch_task = None
-        finally:
-            await _cancel_retrieval_prefetch(retrieval_prefetch_task)
-        if query_plan.route == "planner_exact_faq":
-            retrieval = RetrievalExecution(
-                chunks=_merge_retrieved_chunks(exact_faq_chunks, retrieval.chunks),
-                route=f"exact_faq+{retrieval.route}",
-                expanded_product_count=retrieval.expanded_product_count,
-                expanded_chunk_count=retrieval.expanded_chunk_count,
-            )
-        context_top_k = _context_top_k_for_plan(query_plan, decomposition)
-        reranked = await self.reranker.rerank(
-            retrieval_query,
-            retrieval.chunks,
-            top_k=context_top_k,
-        )
-        if query_plan.route == "planner_exact_faq":
-            reranked = _merge_retrieved_chunks(exact_faq_chunks, reranked)
-        reranked = _expand_exact_faq_context(
-            retrieval_query,
-            reranked,
-            data_root=data_root,
-        )
-        if _should_refuse_out_of_scope(question, retrieval_query, reranked, query_plan):
-            return ChatResponse(
-                answer=_out_of_scope_answer(),
-                session_id=request.session_id,
-                trace_id=trace_id,
-                sources=[],
-                refusal=True,
-                latency_ms=self._elapsed_ms(started),
-                metadata={
-                    "guardrail_reason": "out_of_scope",
-                    "retrieved_count": len(retrieval.chunks),
-                    "reranked_count": len(reranked),
-                    "retrieval_route": retrieval.route,
-                    "llm_model": self.settings.llm_model,
-                    "embedding_model": self.settings.embedding_model,
-                    "data_collection": self.settings.qdrant_collection,
-                    "retrieval_query": retrieval_query,
-                    "query_was_resolved": retrieval_query != question,
-                    **_query_plan_metadata(query_plan, retrieval),
-                    **_query_decomposition_metadata(decomposition),
-                    **_query_rewrite_metadata(rewrite_result),
-                },
-            )
-        history = self._format_history(request)
-        answer_question = _answer_question_for_decomposition(
-            _answer_question_for_plan(
-                question,
-                retrieval_query,
-                rewrite_result,
-                query_plan,
-            ),
-            decomposition,
-        )
-        answer = _requested_field_answer_from_chunks(query_plan, reranked)
-        if answer is None:
-            answer = await self.llm.generate_answer(
-                question=answer_question,
-                history=history,
-                chunks=reranked,
-            )
+        answer_parts: list[str] = []
+        sources: list[SourceCitation] = []
+        metadata_event: dict[str, Any] = {}
+        async for event in self.stream_events(request):
+            event_type = event.get("type")
+            if event_type == "token":
+                answer_parts.append(str(event.get("content") or ""))
+            elif event_type == "sources":
+                sources = [
+                    SourceCitation.model_validate(source)
+                    for source in event.get("sources", [])
+                ]
+            elif event_type == "metadata":
+                metadata_event = event
 
         return ChatResponse(
-            answer=answer,
+            answer="".join(answer_parts),
             session_id=request.session_id,
-            trace_id=trace_id,
-            sources=build_citations(
-                reranked,
-                query="" if decomposition.applied else _citation_query_for_plan(retrieval_query, query_plan),
-                answer=answer,
-                include_grouped_catalog_items=True,
-            ),
-            refusal=False,
-            latency_ms=self._elapsed_ms(started),
-            metadata={
-                "retrieved_count": len(retrieval.chunks),
-                "reranked_count": len(reranked),
-                "retrieval_route": retrieval.route,
-                "llm_model": self.settings.llm_model,
-                "embedding_model": self.settings.embedding_model,
-                "data_collection": self.settings.qdrant_collection,
-                "retrieval_query": retrieval_query,
-                "query_was_resolved": retrieval_query != question,
-                **_query_plan_metadata(query_plan, retrieval),
-                **_query_decomposition_metadata(decomposition),
-                **_query_rewrite_metadata(rewrite_result),
-            },
+            trace_id=str(metadata_event.get("trace_id") or ""),
+            sources=sources,
+            refusal=bool(metadata_event.get("refusal")),
+            latency_ms=int(metadata_event.get("latency_ms") or 0),
+            metadata=dict(metadata_event.get("metadata") or {}),
         )
 
     async def stream(self, request: ChatRequest) -> AsyncIterator[str]:
@@ -1078,44 +849,6 @@ class RagPipeline:
             expanded,
             product_type=product_type,
             preferred_category_keys=preferred_category_keys,
-        )
-
-    def _planner_clarification_response(
-        self,
-        *,
-        request: ChatRequest,
-        query_plan: QueryPlan,
-        rewrite_result: QueryRewriteResult,
-        retrieval_query: str,
-        question: str,
-        trace_id: str,
-        started: float,
-    ) -> ChatResponse:
-        retrieval = RetrievalExecution(chunks=[], route=query_plan.route)
-        return ChatResponse(
-            answer=query_plan.clarification_question
-            or "Bạn vui lòng nêu rõ sản phẩm, nhóm sản phẩm hoặc dịch vụ cần tra cứu.",
-            session_id=request.session_id,
-            trace_id=trace_id,
-            sources=[],
-            refusal=False,
-            latency_ms=self._elapsed_ms(started),
-            metadata={
-                "retrieved_count": 0,
-                "reranked_count": 0,
-                "retrieval_route": query_plan.route,
-                "llm_model": self.settings.llm_model,
-                "embedding_model": self.settings.embedding_model,
-                "data_collection": self.settings.qdrant_collection,
-                "retrieval_query": retrieval_query,
-                "query_was_resolved": retrieval_query != question,
-                "clarification_required": True,
-                **_query_plan_metadata(query_plan, retrieval),
-                **_query_rewrite_metadata(rewrite_result),
-                "clarification_options": _subject_options_metadata(
-                    query_plan.clarification_options
-                ),
-            },
         )
 
     def _planner_clarification_events(

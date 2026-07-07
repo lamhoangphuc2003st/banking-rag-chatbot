@@ -118,6 +118,11 @@ class FakeLLM:
         self.chunks = list(kwargs["chunks"])
         return "Vietcombank Vibe Platinum và Vietcombank Mastercard® Debit"
 
+    async def stream_answer(self, **kwargs: Any) -> Any:
+        self.question = str(kwargs["question"])
+        self.chunks = list(kwargs["chunks"])
+        yield "Vietcombank Vibe Platinum và Vietcombank Mastercard® Debit"
+
 
 def test_query_decomposer_splits_multi_field_multi_product_question() -> None:
     graph_retriever = FakeGraphRetriever()
