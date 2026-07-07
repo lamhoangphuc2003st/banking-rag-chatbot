@@ -139,6 +139,14 @@ class FakeLLM:
         yield "stub answer"
 
 
+class RaisingLLM:
+    """Simulates an LLM provider failure (quota/rate-limit/timeout/outage)."""
+
+    async def stream_answer(self, **_: Any) -> Any:
+        raise RuntimeError("simulated LLM provider outage")
+        yield ""  # pragma: no cover - unreachable; makes this an async generator
+
+
 class StubPlanner(QueryPlanner):
     def __init__(self, payload: dict[str, Any]) -> None:
         super().__init__(_test_settings())
@@ -535,6 +543,28 @@ async def test_pipeline_routes_otp_comparison_faq_to_retrieval() -> None:
     assert response.metadata["retrieved_count"] == 1
     assert response.answer == "stub answer"
     assert response.refusal is False
+
+
+async def test_pipeline_degrades_gracefully_when_generation_fails() -> None:
+    # Regression for the live-deploy finding: an LLM provider error must degrade to
+    # a graceful fallback (HTTP 200), never propagate as an unhandled HTTP 500.
+    pipeline = RagPipeline(_test_settings())
+    pipeline.retriever = SingleChunkRetriever()  # type: ignore[assignment]
+    pipeline.llm = RaisingLLM()  # type: ignore[assignment]
+
+    response = await pipeline.answer(
+        ChatRequest(
+            messages=[
+                ChatMessage(role="user", content="Phân biệt các phương thức nhận OTP?")
+            ]
+        )
+    )
+
+    assert response.refusal is False
+    assert response.metadata["generation_failed"] is True
+    assert "thử lại sau" in response.answer
+    # A fallback message is not grounded in the retrieved chunks, so cite nothing.
+    assert response.sources == []
 
 
 async def test_pipeline_allows_indexed_faq_without_bank_keyword() -> None:

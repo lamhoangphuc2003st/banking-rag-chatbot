@@ -14,6 +14,7 @@ from typing import Any
 from uuid import uuid4
 
 from apps.api.app.core.config import Settings
+from apps.api.app.core.logging import get_logger
 from apps.api.app.models.chat import ChatMessage, ChatRequest, ChatResponse, SourceCitation
 from apps.api.app.rag.citations import build_citations
 from apps.api.app.rag.exchange_rates import ExchangeRateService
@@ -30,6 +31,8 @@ from apps.api.app.rag.retrieval.graph import (
 from apps.api.app.rag.retrieval.hybrid import HybridRetriever
 from apps.api.app.rag.retrieval.reranker import Reranker
 from packages.shared.schemas import RetrievedChunk
+
+logger = get_logger(__name__)
 
 CATALOG_QUERY_MARKERS = (
     "bao gom",
@@ -531,23 +534,43 @@ class RagPipeline:
         )
 
         deterministic_answer = _requested_field_answer_from_chunks(query_plan, reranked)
+        generation_failed = False
+        used_fallback = False
         if deterministic_answer is not None:
             answer_parts.append(deterministic_answer)
             yield {"type": "token", "content": deterministic_answer}
         else:
-            async for token in self.llm.stream_answer(
-                question=answer_question,
-                history=history,
-                chunks=reranked,
-            ):
-                answer_parts.append(token)
-                yield {"type": "token", "content": token}
+            try:
+                async for token in self.llm.stream_answer(
+                    question=answer_question,
+                    history=history,
+                    chunks=reranked,
+                ):
+                    answer_parts.append(token)
+                    yield {"type": "token", "content": token}
+            except Exception as exc:  # provider/network boundary — must never surface as HTTP 500
+                # A generation failure (LLM quota/rate-limit/timeout/outage) degrades
+                # to a graceful message instead of crashing the request. If tokens were
+                # already streamed, keep the partial answer rather than discarding it.
+                generation_failed = True
+                logger.warning("generation_failed", trace_id=trace_id, error=str(exc))
+                if not answer_parts:
+                    used_fallback = True
+                    fallback = _generation_fallback_answer()
+                    answer_parts.append(fallback)
+                    yield {"type": "token", "content": fallback}
 
-        citations = build_citations(
-            reranked,
-            query="" if decomposition.applied else _citation_query_for_plan(retrieval_query, query_plan),
-            answer="".join(answer_parts),
-            include_grouped_catalog_items=True,
+        citations = (
+            []
+            if used_fallback
+            else build_citations(
+                reranked,
+                query=""
+                if decomposition.applied
+                else _citation_query_for_plan(retrieval_query, query_plan),
+                answer="".join(answer_parts),
+                include_grouped_catalog_items=True,
+            )
         )
 
         yield {
@@ -568,6 +591,7 @@ class RagPipeline:
                 "data_collection": self.settings.qdrant_collection,
                 "retrieval_query": retrieval_query,
                 "query_was_resolved": retrieval_query != question,
+                "generation_failed": generation_failed,
                 **_query_plan_metadata(query_plan, retrieval),
                 **_query_decomposition_metadata(decomposition),
                 **_query_rewrite_metadata(rewrite_result),
@@ -1300,6 +1324,13 @@ def _out_of_scope_answer() -> str:
     return (
         "Tôi chỉ hỗ trợ tra cứu thông tin công khai liên quan đến Vietcombank "
         "trong phạm vi dữ liệu đã được index."
+    )
+
+
+def _generation_fallback_answer() -> str:
+    return (
+        "Xin lỗi, hệ thống đang tạm thời quá tải hoặc gặp sự cố khi tạo câu trả lời. "
+        "Bạn vui lòng thử lại sau ít phút."
     )
 
 
