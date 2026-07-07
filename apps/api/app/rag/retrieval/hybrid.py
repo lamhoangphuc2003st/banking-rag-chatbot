@@ -9,6 +9,7 @@ from typing import Any
 
 from apps.api.app.core.config import Settings
 from apps.api.app.core.logging import get_logger
+from apps.api.app.core.metrics import record_cache_event
 from apps.api.app.rag.cache import AsyncTTLCache, CacheBackend, RedisTTLCache
 from packages.shared.schemas import RetrievedChunk
 
@@ -101,6 +102,7 @@ class HybridRetriever:
             filters,
         )
         cached = await self._retrieval_cache.get(cache_key)
+        record_cache_event(hit=cached is not None)
         if cached is not None:
             return list(cached)
 

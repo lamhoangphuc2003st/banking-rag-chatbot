@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.app.core.config import get_settings
 from apps.api.app.core.logging import configure_logging, get_logger
+from apps.api.app.core.metrics import record_chat_metrics
 from apps.api.app.core.rate_limit import RateLimiter, create_rate_limiter
 from apps.api.app.db.audit import save_chat_audit
 from apps.api.app.db.session import AsyncSessionLocal, get_db_session
@@ -122,6 +123,12 @@ async def chat(
     db_session: DbSessionDependency,
 ) -> ChatResponse:
     response = await pipeline.answer(request)
+    record_chat_metrics(
+        endpoint="chat",
+        refusal=response.refusal,
+        latency_ms=response.latency_ms,
+        metadata=response.metadata,
+    )
     await _save_audit_best_effort(db_session, request, response)
     return response
 
@@ -158,6 +165,12 @@ async def chat_stream(
                 refusal=bool(metadata_event.get("refusal")),
                 latency_ms=int(metadata_event.get("latency_ms") or 0),
                 metadata=dict(metadata_event.get("metadata") or {}),
+            )
+            record_chat_metrics(
+                endpoint="chat_stream",
+                refusal=response.refusal,
+                latency_ms=response.latency_ms,
+                metadata=response.metadata,
             )
             await _save_audit_best_effort(db_session, request, response)
         yield "data: {\"type\":\"done\"}\n\n"
