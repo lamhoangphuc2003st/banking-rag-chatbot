@@ -1,4 +1,4 @@
-.PHONY: install install-dev api web lint test eval eval-guardrails verify-runtime verify-runtime-external docker-up docker-down migrate discover-products crawl crawl-catalogs crawl-faq crawl-linked-resources normalize normalize-catalogs normalize-faq normalize-linked-resources chunk chunk-catalogs chunk-faq chunk-linked-resources merge-chunks index reindex
+.PHONY: install install-dev api web lint test eval eval-live eval-guardrails eval-report eval-live-deploy build-golden verify-runtime verify-runtime-external docker-up docker-down migrate discover-products crawl crawl-catalogs crawl-faq crawl-linked-resources normalize normalize-catalogs normalize-faq normalize-linked-resources chunk chunk-catalogs chunk-faq chunk-linked-resources merge-chunks index reindex
 
 install:
 	python -m pip install -e .
@@ -22,8 +22,20 @@ test:
 eval:
 	python -m packages.evals.retrieval_eval --golden data/golden/retrieval_golden.jsonl
 
+eval-live:
+	python -m packages.evals.retrieval_eval --golden data/golden/retrieval_golden.jsonl --backend hybrid
+
 eval-guardrails:
 	python -m packages.evals.refusal_eval --golden data/golden/guardrail_golden.jsonl
+
+eval-report:
+	python -m packages.evals.report
+
+eval-live-deploy:
+	python -m packages.evals.live_eval --base-url $(BASE_URL)
+
+build-golden:
+	python -m packages.evals.build_golden
 
 verify-runtime:
 	python -m packages.data_pipeline.cli verify-runtime

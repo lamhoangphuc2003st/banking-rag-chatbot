@@ -21,6 +21,8 @@ jobs:
         run: mypy apps packages
       - name: Test
         run: pytest
+      - name: Evaluation (offline, reproducible)
+        run: python -m packages.evals.report
       - name: Verify runtime data
         run: python -m packages.data_pipeline.cli verify-runtime
 

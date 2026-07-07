@@ -1,26 +1,33 @@
 {
-  "total": 18,
+  "total": 36,
   "blocking": {
     "accuracy": 1.0,
     "precision": 1.0,
     "recall": 1.0,
-    "true_positive": 6,
+    "true_positive": 10,
     "false_positive": 0,
-    "true_negative": 12,
+    "true_negative": 26,
     "false_negative": 0
   },
   "scope": {
-    "accuracy": 0.9167,
-    "precision": 0.8889,
+    "accuracy": 0.9231,
+    "precision": 0.9,
     "recall": 1.0,
-    "true_positive": 8,
-    "false_positive": 1,
-    "true_negative": 3,
+    "true_positive": 18,
+    "false_positive": 2,
+    "true_negative": 6,
     "false_negative": 0
   },
   "failures": [
     {
       "query": "Hôm nay thời tiết Hà Nội thế nào?",
+      "category": "out_of_scope",
+      "check": "scope",
+      "expected_in_scope": false,
+      "actual_in_scope": true
+    },
+    {
+      "query": "Lịch nghỉ lễ Quốc khánh năm nay thế nào?",
       "category": "out_of_scope",
       "check": "scope",
       "expected_in_scope": false,
