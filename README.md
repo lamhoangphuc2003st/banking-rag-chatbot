@@ -1,6 +1,6 @@
 # Vietcombank RAG Platform
 
-[![CI](https://github.com/lamhoangphuc2003st/banking-chatbot/actions/workflows/ci.yml/badge.svg)](https://github.com/lamhoangphuc2003st/banking-chatbot/actions/workflows/ci.yml)
+[![CI](https://github.com/lamhoangphuc2003st/banking-rag-chatbot/actions/workflows/ci.yml/badge.svg)](https://github.com/lamhoangphuc2003st/banking-rag-chatbot/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 
