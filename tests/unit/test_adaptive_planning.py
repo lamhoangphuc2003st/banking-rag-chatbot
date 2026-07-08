@@ -5,7 +5,12 @@ from typing import Any
 
 from apps.api.app.core.config import Settings
 from apps.api.app.models.chat import ChatMessage, ChatRequest
-from apps.api.app.rag.pipeline import RagPipeline, _answer_question_for_plan
+from apps.api.app.rag.pipeline import (
+    RagPipeline,
+    _answer_question_for_plan,
+    _has_vietcombank_evidence,
+    _should_refuse_out_of_scope,
+)
 from apps.api.app.rag.planner import QueryPlan, QueryPlanner
 from apps.api.app.rag.query_rewrite import QueryRewriteResult
 from apps.api.app.rag.retrieval.graph import GraphRetrievalResult, ProductGraphRetriever
@@ -624,6 +629,35 @@ async def test_pipeline_refuses_out_of_scope_with_only_weak_vietcombank_overlap(
 
     assert response.refusal is True
     assert response.metadata["guardrail_reason"] == "out_of_scope"
+
+
+def test_should_refuse_out_of_scope_prioritises_planner_verdict_over_weak_evidence() -> None:
+    # Regression for the live-deploy finding: an explicit planner (LLM) out-of-scope
+    # verdict must override a heuristic keyword-overlap false-positive. A translation
+    # request ("dịch ... sang tiếng Anh") collides with "dịch vụ" in a support chunk,
+    # which previously counted as Vietcombank evidence and let the bot answer.
+    colliding_chunk = RetrievedChunk(
+        chunk_id="collision",
+        document_id="doc",
+        title="Dịch vụ giúp khách",
+        source_url="https://www.vietcombank.com.vn/x",
+        text="Dịch vụ giúp khách hàng.",
+        score=0.9,
+        section="faq",
+        product_type="digital_banking",
+    )
+    query = "Dịch câu này sang tiếng Anh giúp tôi"
+    plan = QueryPlan(
+        intent="direct_answer",
+        route="llm_planner",
+        reason="translation request, not related to banking products",
+        confidence=0.9,
+    )
+
+    # The collision really does trip the weak evidence heuristic...
+    assert _has_vietcombank_evidence(f"{query} {query}", [colliding_chunk]) is True
+    # ...but the explicit planner verdict now wins, so the query is refused.
+    assert _should_refuse_out_of_scope(query, query, [colliding_chunk], plan) is True
 
 
 async def test_pipeline_routes_public_password_policy_question_to_retrieval() -> None:

@@ -1249,10 +1249,14 @@ def _should_refuse_out_of_scope(
     query_plan: QueryPlan,
 ) -> bool:
     query = f"{original_question} {retrieval_query}"
-    if _has_vietcombank_evidence(query, chunks):
-        return False
+    # An explicit planner (LLM) out-of-scope verdict is a high-quality signal and
+    # takes priority over heuristic keyword-overlap "evidence", which false-positives
+    # on short-token collisions — e.g. a translation request ("dịch ... sang tiếng
+    # Anh") overlapping "dịch vụ" in a support chunk previously got answered.
     if _planner_marked_out_of_scope(query_plan):
         return True
+    if _has_vietcombank_evidence(query, chunks):
+        return False
     return not is_likely_supported_domain(query)
 
 
