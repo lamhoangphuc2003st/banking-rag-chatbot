@@ -17,7 +17,7 @@ the OpenAI quota restored.
 | Guardrails: credential/PII blocking | ✅ 0 leaks, deterministic |
 | LLM generation robustness | ✅ fixed & deployed — provider errors degrade to a fallback |
 | Operational: OpenAI quota | ✅ restored |
-| Out-of-scope detection | ⚠️ heuristic; 2/8 answered instead of refused (no fabrication) |
+| Out-of-scope detection | ✅ improved — planner verdict now refuses translation/off-topic (was 2/8 answered) |
 | Prometheus `/metrics` | ✅ live, counters move with traffic |
 
 **The post-deploy evaluation earned its keep:** it surfaced a critical robustness
@@ -91,9 +91,12 @@ as HTTP 200. Verified three ways:
 
 - **Credential / PII blocking:** 10/10 secret & PII prompts blocked at the guardrail
   in ~0.1s (before any model call). **0 leaks**, deterministic.
-- **Out-of-scope:** 6/8 refused end to end. The 2 that were answered instead of
-  refused (a translation request and a movie recommendation) are a heuristic
-  limitation, not a data-fabrication risk. Overall refusal-behaviour accuracy 0.94.
+- **Out-of-scope:** 6/8 refused end to end at eval time. The 2 that slipped
+  through were a translation request (actively answered) and a movie
+  recommendation (redirected via a clarification). **Fixed since:** the explicit
+  planner out-of-scope verdict now takes priority over collision-prone
+  keyword-overlap evidence, so the translation request is refused (verified
+  end to end). See recommendation 1.
 
 ## 5. Operational ✅
 
@@ -114,8 +117,9 @@ run on the fresh instance):
 
 ## Remaining recommendations
 
-1. Tighten the out-of-scope heuristic (§4) so requests like translation / general
-   chit-chat are refused end to end.
+1. ✅ **Tighten out-of-scope detection** (§4) — *done: the planner's explicit
+   out-of-scope verdict now overrides weak keyword-overlap evidence, so a
+   translation request is refused instead of answered. Verified end to end.*
 2. Bound "exhaustive multi-product" generation (token + latency budget) to cap P95
    and control cost; add an OpenAI budget alert.
 
