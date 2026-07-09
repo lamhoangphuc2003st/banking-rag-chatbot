@@ -1,5 +1,6 @@
 # Vietcombank RAG Platform
 
+[![Live demo](https://img.shields.io/badge/Live%20demo-online-brightgreen.svg)](https://banking-rag-chatbot-gray.vercel.app/)
 [![CI](https://github.com/lamhoangphuc2003st/banking-rag-chatbot/actions/workflows/ci.yml/badge.svg)](https://github.com/lamhoangphuc2003st/banking-rag-chatbot/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
@@ -14,11 +15,14 @@ guardrails, and measured by an evaluation suite.
 
 ## Demo
 
-<!-- TODO: after deploying (see "Deploy" below), paste your live URL and embed a GIF. -->
+- **Live demo:** **https://banking-rag-chatbot-gray.vercel.app/**
+- Ask in Vietnamese about public Vietcombank products (e.g. *"Chi tiết sản phẩm Tiết kiệm tích lũy"*)
+  and watch the answer stream in token by token with source citations.
+- The backend runs on a Render free instance kept warm by a scheduled ping. If it has been idle,
+  the **first** request may take ~30–60s to cold-start; subsequent replies are fast.
 
-- **Live demo:** _add your Vercel/Render URL here._
-- **Walkthrough:** _record a 10–15s clip (query → streamed answer → citations), save it to
-  `docs/assets/demo.gif`, and embed it here._
+<!-- Optional: record a 10–15s clip (query → streamed answer → citations), save it to
+     docs/assets/demo.gif, and embed it here. -->
 
 ## Scope
 
