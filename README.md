@@ -16,8 +16,9 @@ guardrails, and measured by an evaluation suite.
 ## Demo
 
 - **Live demo:** **https://banking-rag-chatbot-gray.vercel.app/**
-- Ask in Vietnamese about public Vietcombank products (e.g. *"Chi tiết sản phẩm Vay mua ô tô"* hoặc *"ho tôi biết về các gói bảo hiểm hiện có của VCB"*)
-  and watch the answer stream in token by token with source citations.
+- Ask in Vietnamese about public Vietcombank products — e.g. *"Chi tiết sản phẩm Vay mua ô tô"*
+  or *"Cho tôi biết về các gói bảo hiểm hiện có của VCB"* — and watch the answer stream in token
+  by token with source citations.
 - The backend runs on a Render free instance kept warm by a scheduled ping. If it has been idle,
   the **first** request may take ~30–60s to cold-start; subsequent replies are fast.
 
