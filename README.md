@@ -16,7 +16,7 @@ guardrails, and measured by an evaluation suite.
 ## Demo
 
 - **Live demo:** **https://banking-rag-chatbot-gray.vercel.app/**
-- Ask in Vietnamese about public Vietcombank products (e.g. *"Chi tiết sản phẩm Tiết kiệm tích lũy"*)
+- Ask in Vietnamese about public Vietcombank products (e.g. *"Chi tiết sản phẩm Vay mua ô tô"* hoặc *"ho tôi biết về các gói bảo hiểm hiện có của VCB"*)
   and watch the answer stream in token by token with source citations.
 - The backend runs on a Render free instance kept warm by a scheduled ping. If it has been idle,
   the **first** request may take ~30–60s to cold-start; subsequent replies are fast.
@@ -34,19 +34,28 @@ guardrails, and measured by an evaluation suite.
 
 ```mermaid
 flowchart LR
-    subgraph Offline["Data pipeline (offline)"]
-        W[Vietcombank site] --> C[Polite crawler] --> N[Normalize + validate]
-        N --> K[Semantic chunking] --> IX[(Qdrant index<br/>vector + lexical + metadata)]
+    UI["Next.js chat UI<br/>streaming + citations"]
+
+    subgraph Online["Online · FastAPI RAG service"]
+        direction LR
+        G["Guardrails"] --> R["Rewrite /<br/>plan / decompose"] --> H["Graph + hybrid<br/>retrieval"] --> RR["Rerank"] --> GEN["Grounded<br/>generation"]
     end
-    subgraph Online["RAG service (FastAPI)"]
-        Q[User query] --> G[Guardrails] --> R[Rewrite / plan / decompose]
-        R --> H[Graph + hybrid retrieval] --> RR[Rerank] --> GEN[Grounded generation]
-        GEN --> A[Answer + citations]
+
+    subgraph Offline["Offline · data pipeline"]
+        direction LR
+        W["Vietcombank<br/>site"] --> C["Polite<br/>crawler"] --> N["Normalize +<br/>validate"] --> K["Semantic<br/>chunking"]
     end
-    IX --- H
-    A --> AUD[(Postgres audit)]
-    Online --> OBS[Prometheus /metrics + structured logs]
-    UI[Next.js streaming chat] --> Q
+
+    IX[("Qdrant index<br/>vector · lexical · metadata")]
+    PG[("Postgres<br/>audit")]
+    OBS["Prometheus /metrics<br/>+ structured logs"]
+
+    UI -->|query| G
+    GEN -->|answer + citations| UI
+    K --> IX
+    IX <--> H
+    GEN --> PG
+    Online -.->|metrics + logs| OBS
 ```
 
 The online pipeline is hand-built async orchestration (no LangGraph) so every stage —
