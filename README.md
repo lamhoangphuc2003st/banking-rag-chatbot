@@ -33,36 +33,36 @@ guardrails, and measured by an evaluation suite.
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    UI["Next.js chat UI<br/>streaming + citations"]
+**Online — FastAPI RAG service.** The Next.js chat UI sends a **query**; the service runs the
+stages below and streams back an **answer with citations**. The non-streaming `answer()` and
+streaming `stream_events()` share one implementation.
 
-    subgraph Online["Online · FastAPI RAG service"]
-        direction LR
-        G["Guardrails"] --> R["Rewrite /<br/>plan / decompose"] --> H["Graph + hybrid<br/>retrieval"] --> RR["Rerank"] --> GEN["Grounded<br/>generation"]
-    end
+| # | Stage | Responsibility |
+| --- | --- | --- |
+| 1 | Guardrails | Reject out-of-scope questions and block credentials / PII / secrets before any retrieval. |
+| 2 | Rewrite · plan · decompose | Normalize the query, resolve context, and split multi-part questions into sub-queries. |
+| 3 | Graph + hybrid retrieval | Fetch candidates from Qdrant (vector + lexical + metadata) and the product graph. |
+| 4 | Rerank | Re-order candidates by relevance (Cohere rerank, with local-score fallback). |
+| 5 | Grounded generation | Compose the answer from retrieved context only, with inline source citations. |
 
-    subgraph Offline["Offline · data pipeline"]
-        direction LR
-        W["Vietcombank<br/>site"] --> C["Polite<br/>crawler"] --> N["Normalize +<br/>validate"] --> K["Semantic<br/>chunking"]
-    end
+**Offline — data pipeline.** Run ahead of time to build the index the service reads from.
 
-    IX[("Qdrant index<br/>vector · lexical · metadata")]
-    PG[("Postgres<br/>audit")]
-    OBS["Prometheus /metrics<br/>+ structured logs"]
+| # | Stage | Responsibility |
+| --- | --- | --- |
+| 1 | Polite crawler | Fetch public Vietcombank pages (httpx + BeautifulSoup, rate-limited). |
+| 2 | Normalize + validate | Clean HTML and validate with Pydantic; record source URL, content hash, crawl time, product type. |
+| 3 | Semantic chunking | Split documents into retrieval-sized chunks with metadata. |
+| 4 | Index | Upsert vectors + lexical + metadata into the Qdrant collection. |
 
-    UI -->|query| G
-    GEN -->|answer + citations| UI
-    K --> IX
-    IX <--> H
-    GEN --> PG
-    Online -.->|metrics + logs| OBS
-```
+**Stores & observability**
 
-The online pipeline is hand-built async orchestration (no LangGraph) so every stage —
-guardrails, query rewrite/planning/decomposition, graph + hybrid retrieval, reranking,
-grounded generation — is explicit and independently testable. The non-streaming `answer()`
-and streaming `stream_events()` share one implementation, so they can never diverge.
+- **Qdrant** — vector + lexical + metadata index (written by the pipeline, read by retrieval).
+- **PostgreSQL** — per-answer audit log (`trace_id`, query, sources, latency).
+- **Prometheus `/metrics` + structured logs** — request volume/latency, refusals by reason, cache hit/miss.
+
+The online pipeline is hand-built async orchestration (no LangGraph), so every stage above is
+explicit and independently testable — and because `answer()` and `stream_events()` share one
+implementation, the streaming and non-streaming paths can never diverge.
 
 ## Tech Stack
 
