@@ -23,8 +23,30 @@ guardrails, and measured by an evaluation suite.
   `/health/live` every 5 minutes. If it has been idle, the **first** request may take ~30–60s to
   cold-start; subsequent replies are fast.
 
-<!-- Optional: record a 10–15s clip (query → streamed answer → citations), save it to
-     docs/assets/demo.gif, and embed it here. -->
+![Vietcombank RAG demo: a "Vay mua o to" (car loan) question answered token-by-token, with source citations that link back to the real vietcombank.com.vn page](docs/assets/demo1.gif)
+
+<details>
+<summary><b>More examples</b> — real-time FX rate · two ways it handles ambiguity</summary>
+
+<br>
+
+**Real-time USD exchange rate.** The exchange-rate tool returns Vietcombank's live buy/sell rates and converts an amount, with its source.
+
+![Asking for today's USD rate; the bot returns buy/sell rates, a conversion, and a source chip](docs/assets/demo4.gif)
+
+**Vague question -> a clarifying question.** Asked only "what are the loan conditions?", the assistant asks which product is meant, then answers for the one picked ("Vay mua nha du an" / home-project loan).
+
+![The assistant asks which loan product the user means, then answers for the chosen one](docs/assets/demo2.gif)
+
+**Ambiguous question -> related options.** Asking about a forgotten password, the assistant surfaces related questions and products to pick from instead of guessing.
+
+![A forgot-password question where the assistant offers related clarification options](docs/assets/demo3.gif)
+
+</details>
+
+<!-- HD video walkthrough (optional): don't commit the .mp4 — drag it into a GitHub
+     issue or release to get a https://github.com/user-attachments/assets/... URL,
+     then paste that URL on its own line here; GitHub renders it as an inline player. -->
 
 ## Scope
 
