@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
@@ -7,7 +8,7 @@ from typing import Annotated, Any, cast
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import ORJSONResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,6 +27,25 @@ configure_logging(settings.log_level)
 logger = get_logger(__name__)
 
 
+async def _warmup_connections(app: FastAPI) -> None:
+    """Eagerly open Redis connections at startup so the first request after an idle
+    spin-down (or a dropped keep-alive) doesn't pay the cold connect cost.
+
+    Best-effort and time-bounded: a slow or unreachable Redis must never block boot,
+    so the whole warm-up is capped and any failure is swallowed (the request path
+    already degrades gracefully on a cache/rate-limiter miss)."""
+    budget_seconds = 2 * settings.redis_socket_connect_timeout_seconds + 1.0
+    with suppress(Exception):
+        await asyncio.wait_for(
+            asyncio.gather(
+                cast(RagPipeline, app.state.pipeline).warmup(),
+                cast(RateLimiter, app.state.rate_limiter).warmup(),
+                return_exceptions=True,
+            ),
+            timeout=budget_seconds,
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.pipeline = RagPipeline(settings)
@@ -35,7 +55,11 @@ async def lifespan(app: FastAPI):
         redis_url=settings.redis_url,
         redis_socket_connect_timeout_seconds=settings.redis_socket_connect_timeout_seconds,
         redis_socket_timeout_seconds=settings.redis_socket_timeout_seconds,
+        redis_socket_keepalive=settings.redis_socket_keepalive,
+        redis_health_check_interval_seconds=settings.redis_health_check_interval_seconds,
+        redis_retry_on_timeout=settings.redis_retry_on_timeout,
     )
+    await _warmup_connections(app)
     logger.info("api_started", env=settings.app_env)
     try:
         yield
@@ -49,7 +73,6 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Vietcombank RAG Platform API",
     version="0.1.0",
-    default_response_class=ORJSONResponse,
     lifespan=lifespan,
 )
 

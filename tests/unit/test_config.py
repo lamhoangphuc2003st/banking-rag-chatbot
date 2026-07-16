@@ -64,3 +64,13 @@ def test_redis_timeouts_are_configurable() -> None:
 
     assert settings.redis_socket_connect_timeout_seconds == 3
     assert settings.redis_socket_timeout_seconds == 8
+
+
+def test_redis_connection_hardening_defaults() -> None:
+    settings = Settings(_env_file=None)
+
+    # 2s was too tight for a cold TLS connect after an idle spin-down.
+    assert settings.redis_socket_connect_timeout_seconds == 5.0
+    assert settings.redis_socket_keepalive is True
+    assert settings.redis_health_check_interval_seconds == 30.0
+    assert settings.redis_retry_on_timeout is True

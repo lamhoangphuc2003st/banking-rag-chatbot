@@ -8,6 +8,7 @@ exercised end-to-end without any external services.
 
 from __future__ import annotations
 
+import types
 from collections.abc import AsyncIterator, Iterator
 from typing import Any
 
@@ -16,7 +17,7 @@ import pytest
 from httpx import ASGITransport
 
 from apps.api.app.db.session import get_db_session
-from apps.api.app.main import app, enforce_rate_limit, get_pipeline
+from apps.api.app.main import _warmup_connections, app, enforce_rate_limit, get_pipeline
 from apps.api.app.models.chat import ChatResponse
 
 ANSWER_TEXT = "Vietcombank hỗ trợ vay mua nhà."
@@ -124,3 +125,30 @@ async def test_metrics_endpoint_exposes_rag_series() -> None:
         response = await client.get("/metrics")
     assert response.status_code == 200
     assert "rag_chat_requests_total" in response.text
+
+
+async def test_startup_warmup_warms_both_backends_and_swallows_failures() -> None:
+    warmed: list[str] = []
+
+    class _Warmable:
+        def __init__(self, name: str, *, fail: bool = False) -> None:
+            self._name = name
+            self._fail = fail
+
+        async def warmup(self) -> None:
+            warmed.append(self._name)
+            if self._fail:
+                raise TimeoutError("Timeout connecting to server")
+
+    fake_app = types.SimpleNamespace(
+        state=types.SimpleNamespace(
+            pipeline=_Warmable("pipeline", fail=True),
+            rate_limiter=_Warmable("rate_limiter"),
+        )
+    )
+
+    # A failing warm-up must not raise: boot proceeds and the other backend is
+    # still warmed (the request path degrades gracefully on a cold miss).
+    await _warmup_connections(fake_app)
+
+    assert set(warmed) == {"pipeline", "rate_limiter"}

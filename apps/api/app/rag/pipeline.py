@@ -214,6 +214,12 @@ class RagPipeline:
         self.reranker = Reranker(settings)
         self.llm = LLMClient(settings)
 
+    async def warmup(self) -> None:
+        """Warm external connections (Redis caches) at startup so the first request
+        after an idle spin-down or a dropped keep-alive doesn't pay the cold connect
+        cost. Best-effort — the retriever swallows and logs any connection error."""
+        await self.retriever.warmup()
+
     async def close(self) -> None:
         await asyncio.gather(
             self.retriever.close(),

@@ -13,6 +13,8 @@ logger = get_logger(__name__)
 class RateLimiter(Protocol):
     async def allow(self, key: str) -> bool: ...
 
+    async def warmup(self) -> None: ...
+
     async def close(self) -> None: ...
 
 
@@ -41,6 +43,9 @@ class InMemoryRateLimiter:
         events.append(now)
         return True
 
+    async def warmup(self) -> None:
+        return None
+
     async def close(self) -> None:
         return None
 
@@ -53,8 +58,11 @@ class RedisRateLimiter:
         redis_url: str,
         limit_per_minute: int,
         *,
-        socket_connect_timeout_seconds: float = 2.0,
+        socket_connect_timeout_seconds: float = 5.0,
         socket_timeout_seconds: float = 5.0,
+        socket_keepalive: bool = True,
+        health_check_interval_seconds: float = 30.0,
+        retry_on_timeout: bool = True,
     ) -> None:
         from redis.asyncio import Redis
 
@@ -65,6 +73,9 @@ class RedisRateLimiter:
             decode_responses=True,
             socket_connect_timeout=max(0.1, socket_connect_timeout_seconds),
             socket_timeout=max(0.1, socket_timeout_seconds),
+            socket_keepalive=socket_keepalive,
+            health_check_interval=int(max(0.0, health_check_interval_seconds)),
+            retry_on_timeout=retry_on_timeout,
         )
 
     async def allow(self, key: str) -> bool:
@@ -78,6 +89,14 @@ class RedisRateLimiter:
             await self._redis.expire(redis_key, 90)
         return int(count) <= self.limit_per_minute
 
+    async def warmup(self) -> None:
+        """Open the connection at startup so the first request doesn't pay the
+        cold connect cost. Best-effort: a failure here is logged, never raised."""
+        try:
+            await self._redis.ping()
+        except Exception as exc:  # pragma: no cover - provider/network boundary
+            logger.warning("rate_limiter_warmup_failed", error=str(exc))
+
     async def close(self) -> None:
         await self._redis.aclose()
 
@@ -87,8 +106,11 @@ def create_rate_limiter(
     backend: str,
     limit_per_minute: int,
     redis_url: str,
-    redis_socket_connect_timeout_seconds: float = 2.0,
+    redis_socket_connect_timeout_seconds: float = 5.0,
     redis_socket_timeout_seconds: float = 5.0,
+    redis_socket_keepalive: bool = True,
+    redis_health_check_interval_seconds: float = 30.0,
+    redis_retry_on_timeout: bool = True,
 ) -> RateLimiter:
     normalized_backend = backend.strip().casefold()
     if normalized_backend == "redis":
@@ -99,6 +121,9 @@ def create_rate_limiter(
             limit_per_minute,
             socket_connect_timeout_seconds=redis_socket_connect_timeout_seconds,
             socket_timeout_seconds=redis_socket_timeout_seconds,
+            socket_keepalive=redis_socket_keepalive,
+            health_check_interval_seconds=redis_health_check_interval_seconds,
+            retry_on_timeout=redis_retry_on_timeout,
         )
     if normalized_backend not in {"", "memory", "inmemory", "local"}:
         logger.warning("unknown_rate_limit_backend", backend=backend, fallback="memory")

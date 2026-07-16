@@ -19,6 +19,8 @@ class CacheBackend(Protocol):
 
     async def clear(self) -> None: ...
 
+    async def warmup(self) -> None: ...
+
     async def close(self) -> None: ...
 
 
@@ -65,6 +67,9 @@ class AsyncTTLCache:
         async with self._lock:
             self._entries.clear()
 
+    async def warmup(self) -> None:
+        return None
+
     async def close(self) -> None:
         await self.clear()
 
@@ -94,8 +99,11 @@ class RedisTTLCache:
         ttl_seconds: float,
         encode: Callable[[Any], str],
         decode: Callable[[str], Any],
-        socket_connect_timeout_seconds: float = 2.0,
+        socket_connect_timeout_seconds: float = 5.0,
         socket_timeout_seconds: float = 5.0,
+        socket_keepalive: bool = True,
+        health_check_interval_seconds: float = 30.0,
+        retry_on_timeout: bool = True,
     ) -> None:
         self.redis_url = redis_url
         self.namespace = namespace.strip(":")
@@ -104,6 +112,9 @@ class RedisTTLCache:
         self.decode = decode
         self.socket_connect_timeout_seconds = max(0.1, socket_connect_timeout_seconds)
         self.socket_timeout_seconds = max(0.1, socket_timeout_seconds)
+        self.socket_keepalive = socket_keepalive
+        self.health_check_interval_seconds = max(0.0, health_check_interval_seconds)
+        self.retry_on_timeout = retry_on_timeout
         self._redis: Any | None = None
 
     async def get(self, key: str) -> Any | None:
@@ -147,6 +158,16 @@ class RedisTTLCache:
         except Exception as exc:  # pragma: no cover - provider boundary
             logger.warning("redis_cache_clear_failed", namespace=self.namespace, error=str(exc))
 
+    async def warmup(self) -> None:
+        """Eagerly open the connection so the first user request doesn't pay the
+        cold connect cost. Best-effort: a failure here is logged, never raised."""
+        if self.ttl_seconds <= 0:
+            return
+        try:
+            await self._client().ping()
+        except Exception as exc:  # pragma: no cover - provider boundary
+            logger.warning("redis_cache_warmup_failed", namespace=self.namespace, error=str(exc))
+
     async def close(self) -> None:
         client = self._redis
         self._redis = None
@@ -163,6 +184,9 @@ class RedisTTLCache:
                 decode_responses=True,
                 socket_connect_timeout=self.socket_connect_timeout_seconds,
                 socket_timeout=self.socket_timeout_seconds,
+                socket_keepalive=self.socket_keepalive,
+                health_check_interval=int(self.health_check_interval_seconds),
+                retry_on_timeout=self.retry_on_timeout,
             )
         return self._redis
 

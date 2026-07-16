@@ -123,6 +123,16 @@ class HybridRetriever:
     ) -> list[RetrievedChunk]:
         return await self._scroll_chunks(filters=filters, limit=limit)
 
+    async def warmup(self) -> None:
+        """Open all cache connections up front so the first request after an idle
+        period doesn't serially pay the cold Redis connect cost on each cache."""
+        await asyncio.gather(
+            self._retrieval_cache.warmup(),
+            self._embedding_cache.warmup(),
+            self._scroll_cache.warmup(),
+            return_exceptions=True,
+        )
+
     async def close(self) -> None:
         await asyncio.gather(
             self._retrieval_cache.close(),
@@ -163,6 +173,9 @@ class HybridRetriever:
                 decode=decode,
                 socket_connect_timeout_seconds=self.settings.redis_socket_connect_timeout_seconds,
                 socket_timeout_seconds=self.settings.redis_socket_timeout_seconds,
+                socket_keepalive=self.settings.redis_socket_keepalive,
+                health_check_interval_seconds=self.settings.redis_health_check_interval_seconds,
+                retry_on_timeout=self.settings.redis_retry_on_timeout,
             )
         if backend not in {"", "memory", "inmemory", "local"}:
             logger.warning("unknown_rag_cache_backend", backend=backend, fallback="memory")

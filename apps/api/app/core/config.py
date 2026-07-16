@@ -46,8 +46,16 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+asyncpg://bankbot:bankbot@localhost:5432/bankbot"
     redis_url: str = ""
-    redis_socket_connect_timeout_seconds: float = 2.0
+    # 2s is too tight for a cold TLS handshake to a remote managed Redis after an
+    # idle spin-down; the first request then times out ("Timeout connecting to server").
+    redis_socket_connect_timeout_seconds: float = 5.0
     redis_socket_timeout_seconds: float = 5.0
+    # Keep pooled connections healthy across idle periods so the first request after a
+    # lull doesn't grab a silently-dropped socket: OS keep-alive + a pre-command PING on
+    # idle connections, and one automatic retry when a connect/read times out.
+    redis_socket_keepalive: bool = True
+    redis_health_check_interval_seconds: float = 30.0
+    redis_retry_on_timeout: bool = True
     qdrant_url: str = "http://localhost:6333"
     qdrant_api_key: str | None = None
     qdrant_collection: str = "vietcombank_public_docs"
